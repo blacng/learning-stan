@@ -1,0 +1,65 @@
+---
+title: "Learning Stan"
+author: "Seun Odeyemi"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+## Load Libraries
+
+```{r load_libraries, message=FALSE}
+library(kableExtra)
+library(dplyr)
+```
+
+
+In this Stan program, we let theta be a transformation of mu, eta, and tau instead of declaring theta in the parameters block, which allows the sampler will run more efficiently (see detailed explanation). We can prepare the data (which typically is a named list) in R with:
+
+```{r create_list}
+schools_dat <- list(J = 8, 
+                    y = c(28,  8, -3,  7, -1,  1, 18, 12),
+                    sigma = c(15, 10, 16, 11,  9, 11, 10, 18))
+```
+
+And we can get a fit with the following R command. Note that the argument to file = should point to where the file is on your file system unless you have put it in the working directory of R in which case the below will work.
+
+```{r load_stan, message=FALSE}
+library(rstan)
+# For execution on a local, multicore CPU with excess RAM we recommend calling
+options(mc.cores = parallel::detectCores())
+# To avoid recompilation of unchanged Stan programs, we recommend calling
+rstan_options(auto_write = TRUE)
+
+fit <- stan(file = '8schools.stan', data = schools_dat)
+```
+
+The object fit, returned from function stan is an `S4` object of class `stanfit`. Methods such as print, plot, and pairs are associated with the fitted result so we can use the following code to check out the results in fit. print provides a summary for the parameter of the model as well as the log-posterior with name `lp__` (see the following example output). For more methods and details of class `stanfit`, see the help of class `stanfit`.
+
+In particular, we can use the extract function on `stanfit` objects to obtain the samples. extract extracts samples from the `stanfit` object as a list of arrays for parameters of interest, or just an array. In addition, S3 functions `as.array`, `as.matrix`, and `as.data.frame` are defined for `stanfit` objects (using `help("as.array.stanfit")` to check out the help document in R).
+
+```{r fit_stan_model}
+# print(fit)
+
+fit2 <- as.data.frame(fit)
+
+kable(fit2[0:10, 1:5]) %>%
+  kable_styling(bootstrap_options = "striped", full_width = T, fixed_thead = T)
+
+plot(fit)
+pairs(fit, pars = c("mu", "tau", "lp__"))
+
+la <- extract(fit, permuted = TRUE) # return a list of arrays 
+mu <- la$mu 
+
+### return an array of three dimensions: iterations, chains, parameters 
+a <- extract(fit, permuted = FALSE) 
+
+### use S3 functions on stanfit objects
+a2 <- as.array(fit)
+m <- as.matrix(fit)
+d <- as.data.frame(fit)
+```
+
