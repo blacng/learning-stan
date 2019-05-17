@@ -45,8 +45,8 @@ In particular, we can use the extract function on `stanfit` objects to obtain th
 
 fit2 <- as.data.frame(fit)
 
-kable(fit2[0:10, 1:5]) %>%
-  kable_styling(bootstrap_options = "striped", full_width = T, fixed_thead = T)
+kable(fit2[1:10, 1:5]) %>%
+  kable_styling(bootstrap_options = "striped", full_width = T)
 
 plot(fit)
 pairs(fit, pars = c("mu", "tau", "lp__"))
