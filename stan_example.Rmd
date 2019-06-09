@@ -3,9 +3,12 @@ title: "Learning Stan"
 author: "Seun Odeyemi"
 date: "`r Sys.Date()`"
 output:
-  prettydoc::html_pretty:
-    theme: cayman
-    highlight: github
+  pdf_document:
+    df_print: kable
+    toc: yes
+  # prettydoc::html_pretty:
+  #   theme: cayman
+  #   highlight: github
 ---
 
 ## Load Libraries
