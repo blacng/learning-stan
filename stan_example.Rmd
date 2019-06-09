@@ -33,6 +33,8 @@ options(mc.cores = parallel::detectCores())
 # To avoid recompilation of unchanged Stan programs, we recommend calling
 rstan_options(auto_write = TRUE)
 
+# stan(..., control = list(adapt_delta = 0.99))
+
 fit <- stan(file = '8schools.stan', data = schools_dat)
 ```
 
@@ -43,10 +45,10 @@ In particular, we can use the extract function on `stanfit` objects to obtain th
 ```{r fit_stan_model}
 # print(fit)
 
-fit2 <- as.data.frame(fit)
-
-kable(fit2[1:10, 1:5]) %>%
-  kable_styling(bootstrap_options = "striped", full_width = T)
+# fit2 <- as.data.frame(fit)
+# 
+# kable(fit2[1:10, 1:5]) %>%
+#   kable_styling(bootstrap_options = "striped", full_width = T)
 
 plot(fit)
 pairs(fit, pars = c("mu", "tau", "lp__"))
@@ -61,5 +63,8 @@ a <- extract(fit, permuted = FALSE)
 a2 <- as.array(fit)
 m <- as.matrix(fit)
 d <- as.data.frame(fit)
+
+kable(d[1:10,1:10]) %>%
+  kable_styling(bootstrap_options = "striped", full_width = T)
 ```
 
