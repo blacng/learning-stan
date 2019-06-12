@@ -36,6 +36,9 @@ options(mc.cores = parallel::detectCores())
 # To avoid recompilation of unchanged Stan programs, we recommend calling
 rstan_options(auto_write = TRUE)
 
+M <- file.path(Sys.getenv("HOME"), ".R", ifelse(.Platform$OS.type == "windows", "Makevars.win", "Makevars"))
+file.edit(M)
+
 # stan(..., control = list(adapt_delta = 0.99))
 
 fit <- stan(file = '8schools.stan', data = schools_dat)

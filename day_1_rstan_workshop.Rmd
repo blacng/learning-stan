@@ -1,0 +1,47 @@
+---
+title: "Day 1 - R Stan Workshop @ Calvin College"
+author: "Seun Odeyemi"
+date: "6/10/2019"
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries
+
+```{r stan-libraries, message=TRUE, warning=TRUE}
+library(rstan)
+library(rstanarm)
+library(bayesplot)
+```
+
+
+## Visualization in Bayesian Workflow
+
+1. Exploratory data analysis: We look at the data thinking about the models we want to fit.
+2. Prior predictive checking: This will help analyze assumptions you are making in the prior before fitting the model. 
+3. Model fitting and algorithm diagnostics
+4. Posterior predictive checking: Checking inferences 
+5. Model comparison (e.g., via cross-validation)
+
+
+
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
