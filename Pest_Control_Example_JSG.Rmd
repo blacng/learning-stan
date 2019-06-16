@@ -1,11 +1,9 @@
 ---
 title: "Calvin College 2019"
-author: "Seun Odeyemi"
+author: ""
 date: "`r Sys.Date()`"
 output:
-  prettydoc::html_pretty:
-    theme: cayman
-    highlight: github
+  html_notebook:
     toc: true
     toc_depth: 2
 ---
@@ -19,15 +17,12 @@ knitr::opts_chunk$set(
   dpi = 150,
   fig.align = "center",
   comment = NA
-  # fig.width = 4,
-  # fig.height = 2
 )
 library(rstan)
 library(dplyr)
 library(lubridate)
 library(ggplot2)
 library(bayesplot)
-# library(ggthemes)
 
 theme_set(bayesplot::theme_default())
 
@@ -36,8 +31,6 @@ set.seed(1123)
 ```
 
 ## The problem
-
-
 
 ### Background
 
@@ -104,9 +97,7 @@ The data provided to us is in a file called `pest_data.RDS`. Let's
 load the data and see what the structure is:
 
 ```{r load-data}
-library(here)
-pest_data <-  readRDS(here("data/pest_data.RDS")) 
-head(pest_data)
+pest_data <- readRDS('data/pest_data.RDS')
 str(pest_data)
 ```
 
@@ -211,7 +202,6 @@ and then check that we can sufficiently recover the parameter values used
 in the simulation.
 
 In R we can simulate data like this: 
-
 ```{r}
 set.seed(106) # seed for R (not Stan)
 N <- nrow(pest_data)
@@ -293,6 +283,7 @@ fit_model_P <- sampling(comp_model_P, data = stan_dat_fake, seed = 123)
 posterior_alpha_beta <- as.matrix(fit_model_P, pars = c('alpha','beta'))
 head(posterior_alpha_beta)
 ```
+
 
 ### Assess parameter recovery
 
@@ -495,6 +486,13 @@ ggplot(pest_data, aes(x = log(total_sq_foot), y = log1p(complaints))) +
 Using the property manager's intuition, we include two extra pieces of
 information we know about the building - the (log of the) square floor space and
 whether there is a live in super or not - into both the simulated and real data.
+
+Adding in `live_in_super` gives us: 
+$$
+\eta_{b,t} = \alpha + \beta \, \textrm{traps}_{b,t} +
+\beta_{\rm super} \textrm{live_in_super}_{b,t} +
+\textrm{log_sq_foot}_b
+$$
  
 ```{r}
 stan_dat_simple$log_sq_foot <- pest_data$log_sq_foot_1e4 # log(total_sq_foot/1e4)
@@ -563,11 +561,14 @@ Stan program correctly and we're ready to fit the real data.
 Now let's use the real data and explore the fit.
 
 ```{r fit_mult_P_real_dat}
-fit_model_P_mult_real <- sampling(comp_model_P_mult, data = stan_dat_simple)
+fit_model_P_mult_real <- sampling(comp_model_P_mult, data = stan_dat_simple, 
+                                  refresh = 0) # turn off printed progress updates
+
 y_rep <- as.matrix(fit_model_P_mult_real, pars = "y_rep")
 ppc_dens_overlay(stan_dat_simple$complaints, y_rep[1:200,])
 
-# ids <- sample(nrow())
+ids <- sample(nrow(y_rep), size = 200)
+ppc_dens_overlay(stan_dat_simple$complaints, y_rep[ids, ])
 ```
 
 This again looks like we haven't captured the smaller counts very well, nor
@@ -576,7 +577,12 @@ have we captured the larger counts.
 
 ```{r}
 prop_zero <- function(x) mean(x == 0)
-ppc_stat(y = stan_dat_simple$complaints, yrep = y_rep, stat = "prop_zero", binwidth = 0.01)
+ppc_stat(
+  y = stan_dat_simple$complaints,
+  yrep = y_rep,
+  stat = "prop_zero",
+  binwidth = 0.01
+)
 ```
 
 We're still severely underestimating the proportion of zeros in the data. Ideally
@@ -688,14 +694,13 @@ recovered our known parameters, $\text{alpha}$ $\texttt{beta}$, .
 
 ```{r runNBoverfake, message=FALSE, warning=FALSE}
 fitted_model_NB <- sampling(comp_model_NB, data = stan_dat_fake_NB, 
-                            chains = 4, cores = 4)
+                            cores = 4)
 posterior_alpha_beta_NB <- 
   as.matrix(fitted_model_NB,
             pars = c('alpha',
                      'beta',
                      'beta_super',
-                     'inv_phi')
-  )
+                     'inv_phi'))
 ```
 
 Construct the vector of true values from your simulated dataset and compare to
@@ -714,8 +719,9 @@ mcmc_recover_hist(posterior_alpha_beta_NB, true = true_alpha_beta_NB)
 ### Fit to real data and check the fit
 
 ```{r runNB}
-fitted_model_NB <- sampling(comp_model_NB, data = stan_dat_simple)
+fitted_model_NB <- sampling(comp_model_NB, data = stan_dat_simple, cores = 4)
 samps_NB <- rstan::extract(fitted_model_NB)
+str(samps_NB)
 ```
 
 Let's look at our predictions vs. the data.
@@ -772,7 +778,7 @@ We haven't used the fact that the data are clustered by building yet. A posterio
 predictive check might elucidate whether it would be a good idea to add the building
 information into the model.
 
-```{r ppc-group_means}
+```{r ppc-group_means, fig.width=7, fig.height=6}
 ppc_stat_grouped(
   y = stan_dat_simple$complaints, 
   yrep = y_rep, 
@@ -838,7 +844,7 @@ variable to an integer variable.
 
 ```{r prep-data}
 N_months <- length(unique(pest_data$date))
-
+N_buildings <- length(unique(pest_data$building_id))
 # Add some IDs for building and month
 pest_data <- pest_data %>%
   mutate(
@@ -901,11 +907,10 @@ Fit the model to data.
 ```{r run-NB-hier}
 fitted_model_NB_hier <-
   sampling(
-  comp_model_NB_hier,
-  data = stan_dat_hier,
-  chains = 4,
-  cores = 4,
-  iter = 4000
+    comp_model_NB_hier,
+    data = stan_dat_hier,
+    cores = 4,
+    iter = 4000
   )
 ```
 
@@ -955,6 +960,7 @@ mcmc_trace(
   np = nuts_params(fitted_model_NB_hier),
   window = c(500,1000)
 )
+color_scheme_set("blue")
 ```
 
 Looks as if the divergent parameters, the little red bars underneath the traceplots
@@ -989,6 +995,7 @@ for (j in 1:N_sims) {
   theta[j] <- rnorm(1, mean = 0, sd = exp(log_sigma[j]))
 }
 draws <- cbind("mu" = theta, "log(sigma_mu)" = log_sigma)
+
 mcmc_scatter(draws)
 ```
 
@@ -1028,8 +1035,7 @@ $$
 
 ```
 transformed parameters {
-  vector[J] mu;
-  mu = alpha + building_data * zeta + sigma_mu * mu_raw;
+  vector[J] mu = alpha + building_data * zeta + sigma_mu * mu_raw;
 }
 ```
 
@@ -1152,12 +1158,9 @@ ppc_intervals(
   labs(x = "Number of traps", y = "Number of complaints")
 ```
 
-Standardized residuals:
+
 ```{r}
-mean_y_rep <- colMeans(y_rep)
-mean_inv_phi <- mean(as.matrix(fitted_model_NB_hier_ncp, pars = "inv_phi"))
-std_resid <- (stan_dat_hier$complaints - mean_y_rep) / sqrt(mean_y_rep + mean_y_rep^2*mean_inv_phi)
-qplot(mean_y_rep, std_resid) + hline_at(2) + hline_at(-2)
+ppc_rootogram(stan_dat_hier$complaints, yrep = y_rep)
 ```
 
 Rootogram:
@@ -1175,8 +1178,6 @@ and also, later, also model temporal variation.
 
 ```{r}
 stan_dat_hier <- readRDS('data/pest_data_longer_stan_dat.RDS')
-library(dplyr)
-glimpse(stan_dat_hier)
 ```
 
 Perhaps if the levels of complaints differ by building, the coefficient for the
@@ -1205,17 +1206,16 @@ fitted_model_NB_hier_slopes <-
   sampling(
     comp_model_NB_hier_slopes,
     data = stan_dat_hier,
-    chains = 4, cores = 4,
-    control = list(adapt_delta = 0.95) 
-    #adapt delta acceptance rate you want to target for the propoposals
-    #as you move closer to 1 it forces the sampler to take smaller steps
+    chains = 4, 
+    cores = 4,
+    control = list(adapt_delta = 0.95)
   )
 ```
 
 To see if the model infers building-to-building differences in, we can plot a
 histogram of our marginal posterior distribution for `sigma_kappa`.
 
-```{r}
+```{r, fig.width = 3, fig.height = 3}
 mcmc_hist(
   as.matrix(fitted_model_NB_hier_slopes, pars = "sigma_kappa"),
   binwidth = 0.005
@@ -1226,21 +1226,9 @@ mcmc_hist(
 print(fitted_model_NB_hier_slopes, pars = c('kappa','beta','alpha','phi','sigma_mu','sigma_kappa','mu'))
 ```
 
-`se_mean` --- the Monte Carlo standard error. It tells us how precisely you have estimated the mean. 
-
-`n_eff` --- the number of effective sample sizes. 
-1. What's an effective sample size? 
-2. If sample sizes are disparate, what does that indicate? 
-
-```{r}
-mcmc_hist(
-  as.matrix(fitted_model_NB_hier_slopes, pars = "beta"),
-  binwidth = 0.005
-)
-```
 
 While the model can't specifically rule out zero from the posterior, it does have mass at small
-non-zero numbers, so we should leave in the hierarchy over $\texttt{kappa}$. Plotting the marginal
+non-zero numbers, so we will leave in the hierarchy over $\texttt{kappa}$. Plotting the marginal
 data density again, we can see the model still looks well calibrated.
 
 ```{r ppc-full-hier-slopes}
@@ -1250,6 +1238,8 @@ ppc_dens_overlay(
   yrep = y_rep[1:200,]
 )
 ```
+
+Check quantiles of predictions: 
 
 ```{r}
 q90 <- function(x) quantile(x, probs = 0.9)
@@ -1316,6 +1306,13 @@ $$
 
 Then we can put a beta prior on $\rho_\text{raw}$ to push our estimate towards 0.5.
 
+For example a `rho_raw ~ beta(10, 5)` prior would look like:
+
+```{r}
+library(ggformula)
+gf_dist("beta", shape1 = 10, shape2 = 5)
+```
+
 One further wrinkle is that we have a prior for $\texttt{mo}_t$ that depends on
 $\texttt{mo}_{t-1}$. That is, we are working with the _conditional_ distribution
 of $\texttt{mo}_t$ given $\texttt{mo}_{t-1}$.
@@ -1376,14 +1373,15 @@ comp_model_NB_hier_mos <- stan_model('stan_programs/hier_NB_regression_ncp_slope
 ```
 
 ```{r run-NB-hier-slopes-mos}
-fitted_model_NB_hier_mos <- sampling(comp_model_NB_hier_mos, data = stan_dat_hier, chains = 4, cores = 4, control = list(adapt_delta = 0.9))
-# Error in unserialize(socklist[[n]]) : error reading from connection
-# Error in serialize(data, node$con, xdr = FALSE) : error writing to connection
-# Having problem fitting the model using the option cores = 2, 3, 4
-# This is the first time I am encountering this error
+fitted_model_NB_hier_mos <-
+  sampling(
+    comp_model_NB_hier_mos,
+    data = stan_dat_hier,
+    chains = 4,
+    cores = 4,
+    control = list(adapt_delta = 0.95)
+  )
 ```
-
-failed to create the sampler; sampling not done
 
 In the interest of brevity, we won't go on expanding the model, though we certainly could.
 What other information would help us understand the data generating process better? What
@@ -1441,6 +1439,7 @@ mcmc_hist(as.matrix(fitted_model_NB_hier_mos, pars = "rho"),
   overlay_function(fun = gen_rho_prior) +
   xlim(-1,1)
 ```
+
 ```{r}
 print(fitted_model_NB_hier_mos, pars = c('rho','sigma_mu','sigma_kappa','gamma'))
 ```
@@ -1451,7 +1450,8 @@ ppc_intervals(
   yrep = y_rep,
   x = stan_dat_hier$traps
 ) +
-  labs(x = "Number of traps", y = "Number of complaints")
+  labs(x = "Number of traps", 
+       y = "Number of complaints")
 ```
 
 It looks as if our model finally generates a reasonable posterior predictive
@@ -1459,7 +1459,7 @@ distribution for all numbers of traps, and appropriately captures the tails of t
 data generating process.
 
 
-## Using our model: Cost forecasts
+## Using our model: loss forecasts for decision making
 
 Our model seems to be fitting well, so now we will go ahead and use the model to
 help us make a decision about how many traps to put in our buildings. We'll make
@@ -1467,7 +1467,6 @@ a forecast for 6 months forward.
 
 ```{r comp-rev, cache=TRUE, results="hide", message=FALSE}
 comp_rev <- stan_model('stan_programs/hier_NB_regression_ncp_slopes_mod_mos_predict.stan')
-print(comp_rev)
 ```
 
 An important input to the revenue model is how much revenue is lost due to each
@@ -1475,8 +1474,12 @@ complaint. The client has a policy that for every 10 complaints, they'll call an
 exterminator costing the client \$100, so that'll amount to \$10 per complaint.
 
 ```{r run-NB-hier-rev}
-rev_model <- sampling(comp_rev, data = stan_dat_hier, cores = 4,
-                      control = list(adapt_delta = 0.9))
+rev_model <- sampling(
+  comp_rev,
+  data = stan_dat_hier,
+  cores = 4,
+  control = list(adapt_delta = 0.9)
+)
 ```
 
 Below we've generated our revenue curves for the buildings. These charts will
@@ -1493,7 +1496,7 @@ plus monthly replenishment of the bait material is about \$20.
 
 ```{r materials-cost-formulation}
 N_traps <- 20
-costs <- 10 * (0:N_traps)
+costs <- 20 * (0:N_traps)
 ```
 
 We'll also need labor for maintaining the bait stations, which need to be
@@ -1518,35 +1521,47 @@ costs <- costs +
 ```
 
 We can now plot curves with number of traps on the x-axis and profit/loss
-forecasts and uncertainty intervals on the y-axis.
+forecasts and uncertainty intervals on the y-axis. When we do this we see that
+the optimal number of bait stations differs by building.
 
-```{r rev-curves, fig.width = 6, fig.height = 8}
-# extract as a list for convenience below
+```{r rev-curves, fig.width = 8, fig.height = 8}
+# extract as a list instead of matrix for convenience below
 samps_rev <- rstan::extract(rev_model)
 
-# total and mean profit
-tot_profit <- sweep(samps_rev$rev_, 3, STATS = costs, FUN = '-')
-median_profit <- t(apply(tot_profit, c(2, 3), median))
+# get draws of total profits (in this case negative, so losses)
+total_profits <- sweep(samps_rev$rev_pred, 3, STATS = costs, FUN = '-')
 
-# lower and upper ends of 50% central interval
-lower_profit <- t(apply(tot_profit, c(2, 3), quantile, 0.25))
-upper_profit <- t(apply(tot_profit, c(2, 3), quantile, 0.75))
+# calculate medians and central intervals (for example 80% intervals)
+median_profit <- t(apply(total_profits, c(2, 3), median))
+lower_profit <- t(apply(total_profits, c(2, 3), quantile, 0.1))
+upper_profit <- t(apply(total_profits, c(2, 3), quantile, 0.9))
+
+buildings <- seq(1, ncol(median_profit))
+traps <- seq(0, nrow(median_profit) - 1)
 
 profit_df <-
   data.frame(
-    profit = as.vector(mean_profit),
+    profit = as.vector(median_profit),
     lower = as.vector(lower_profit),
     upper = as.vector(upper_profit),
-    traps = rep(0:N_traps, times = N_buildings),
-    building = rep(1:N_buildings, each = N_traps + 1)
+    traps = rep(traps, times = max(buildings)),
+    building = rep(buildings, each = max(traps) + 1)
   )
-ggplot(data = profit_df, aes(x = traps, y = profit)) +
-  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "grey70") +
-  geom_line() +
-  facet_wrap(~ building, scales = 'free_y', ncol = 2) + ggthemes::theme_economist_white()
+
+p <- ggplot(data = profit_df, aes(x = traps, y = profit)) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "skyblue") +
+  geom_line()
+
+# p + facet_wrap(~ building, scales = 'free', ncol = 2)
+p + facet_wrap(~ building, scales = 'fixed', ncol = 3)
 ```
 
-We can can see that the optimal number of bait stations differs by building.
+
+```{r}
+# interactive version
+library(plotly)
+p %>% ggplotly()
+```
 
 
 <br>
