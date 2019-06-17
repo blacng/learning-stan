@@ -35,13 +35,24 @@ library(rstan)
 options(mc.cores = parallel::detectCores())
 # To avoid recompilation of unchanged Stan programs, we recommend calling
 rstan_options(auto_write = TRUE)
+Sys.setenv(LOCAL_CPPFLAGS = '-march=native')
+
+dotR <- file.path(Sys.getenv("HOME"), ".R")
+if (!file.exists(dotR)) dir.create(dotR)
+M <- file.path(dotR, ifelse(.Platform$OS.type == "windows", "Makevars.win", "Makevars"))
+if (!file.exists(M)) file.create(M)
+cat("\nCXX14FLAGS=-O3 -march=native -mtune=native",
+    if( grepl("^darwin", R.version$os)) "CXX14FLAGS += -arch x86_64 -ftemplate-depth-256" else 
+    if (.Platform$OS.type == "windows") "CXX11FLAGS=-O3 -march=native -mtune=native" else
+    "CXX14FLAGS += -fPIC",
+    file = M, sep = "\n", append = TRUE)
 
 M <- file.path(Sys.getenv("HOME"), ".R", ifelse(.Platform$OS.type == "windows", "Makevars.win", "Makevars"))
 file.edit(M)
 
-# stan(..., control = list(adapt_delta = 0.99))
-
-fit <- stan(file = '8schools.stan', data = schools_dat)
+# # stan(..., control = list(adapt_delta = 0.99))
+# 
+# fit <- stan(file = '8schools.stan', data = schools_dat)
 ```
 
 The object fit, returned from function stan is an `S4` object of class `stanfit`. Methods such as print, plot, and pairs are associated with the fitted result so we can use the following code to check out the results in fit. print provides a summary for the parameter of the model as well as the log-posterior with name `lp__` (see the following example output). For more methods and details of class `stanfit`, see the help of class `stanfit`.
