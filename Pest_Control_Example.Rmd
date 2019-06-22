@@ -1175,6 +1175,8 @@ and also, later, also model temporal variation.
 
 ```{r}
 stan_dat_hier <- readRDS('data/pest_data_longer_stan_dat.RDS')
+library(dplyr)
+glimpse(stan_dat_hier)
 ```
 
 Perhaps if the levels of complaints differ by building, the coefficient for the
@@ -1204,7 +1206,9 @@ fitted_model_NB_hier_slopes <-
     comp_model_NB_hier_slopes,
     data = stan_dat_hier,
     chains = 4, cores = 4,
-    control = list(adapt_delta = 0.95)
+    control = list(adapt_delta = 0.95) 
+    #adapt delta acceptance rate you want to target for the propoposals
+    #as you move closer to 1 it forces the sampler to take smaller steps
   )
 ```
 
@@ -1221,6 +1225,12 @@ mcmc_hist(
 ```{r}
 print(fitted_model_NB_hier_slopes, pars = c('kappa','beta','alpha','phi','sigma_mu','sigma_kappa','mu'))
 ```
+
+`se_mean` --- the Monte Carlo standard error. It tells us how precisely you have estimated the mean. 
+
+`n_eff` --- the number of effective sample sizes. 
+1. What's an effective sample size? 
+2. If sample sizes are disparate, what does that indicate? 
 
 ```{r}
 mcmc_hist(
@@ -1241,6 +1251,14 @@ ppc_dens_overlay(
 )
 ```
 
+```{r}
+q90 <- function(x) quantile(x, probs = 0.9)
+ppc_stat(
+  y = stan_dat_hier$complaints,
+  yrep = y_rep,
+  stat = "q90"
+)
+```
 
 ## Time varying effects and structured priors
 
@@ -1359,7 +1377,13 @@ comp_model_NB_hier_mos <- stan_model('stan_programs/hier_NB_regression_ncp_slope
 
 ```{r run-NB-hier-slopes-mos}
 fitted_model_NB_hier_mos <- sampling(comp_model_NB_hier_mos, data = stan_dat_hier, chains = 4, cores = 4, control = list(adapt_delta = 0.9))
+# Error in unserialize(socklist[[n]]) : error reading from connection
+# Error in serialize(data, node$con, xdr = FALSE) : error writing to connection
+# Having problem fitting the model using the option cores = 2, 3, 4
+# This is the first time I am encountering this error
 ```
+
+failed to create the sampler; sampling not done
 
 In the interest of brevity, we won't go on expanding the model, though we certainly could.
 What other information would help us understand the data generating process better? What
@@ -1502,7 +1526,7 @@ samps_rev <- rstan::extract(rev_model)
 
 # total and mean profit
 tot_profit <- sweep(samps_rev$rev_, 3, STATS = costs, FUN = '-')
-mean_profit <- t(apply(tot_profit, c(2, 3), median))
+median_profit <- t(apply(tot_profit, c(2, 3), median))
 
 # lower and upper ends of 50% central interval
 lower_profit <- t(apply(tot_profit, c(2, 3), quantile, 0.25))
@@ -1519,7 +1543,7 @@ profit_df <-
 ggplot(data = profit_df, aes(x = traps, y = profit)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), fill = "grey70") +
   geom_line() +
-  facet_wrap(~ building, scales = 'free_y', ncol = 2)
+  facet_wrap(~ building, scales = 'free_y', ncol = 2) + ggthemes::theme_economist_white()
 ```
 
 We can can see that the optimal number of bait stations differs by building.
